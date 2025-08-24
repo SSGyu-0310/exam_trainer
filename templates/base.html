@@ -11,8 +11,9 @@
     <nav class="navbar navbar-expand-lg bg-body-tertiary shadow-sm">
       <div class="container">
         <a class="navbar-brand fw-bold" href="{{ url_for('index') }}">맞춤형 모의고사</a>
-        <div class="ms-auto">
-          <a href="{{ url_for('manage') }}" class="btn btn-outline-secondary btn-sm">문제 관리</a>
+          <div class="ms-auto">
+            <a href="{{ url_for('history_list') }}" class="btn btn-outline-secondary btn-sm me-2">시험 기록</a>
+            <a href="{{ url_for('manage') }}" class="btn btn-outline-secondary btn-sm">문제 관리</a>
         </div>
       </div>
     </nav>

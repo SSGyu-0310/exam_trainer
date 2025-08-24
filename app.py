@@ -104,22 +104,23 @@ def start_exam():
 
 @app.route("/submit", methods=["POST"])
 def submit_exam():
-    """시험 제출 및 채점."""
+    """시험 제출, 채점, 그리고 DB에 결과 기록."""
     qids = session.get("current_exam", [])
     if not qids:
+        # 세션에 시험 정보가 없으면 메인으로 리디렉션
         return redirect(url_for("index"))
 
     user_answers = {}
     for qid in qids:
         key = f"q_{qid}"
-        # ✨[수정] get() 대신 getlist()를 사용하여 사용자가 선택한 답안을 리스트로 받음
-        # DB와 비교를 위해 정수 리스트로 변환
+        # 여러 답을 선택하는 경우를 대비해 getlist 사용
         user_answers[qid] = [int(val) for val in request.form.getlist(key)]
 
     results = []
     score = 0
 
     with closing(get_db()) as con:
+        # 1. 문제 채점 및 결과 데이터 생성
         for qid in qids:
             cur = con.cursor()
             cur.execute("SELECT * FROM Question WHERE question_id = ?", (qid,))
@@ -128,43 +129,78 @@ def submit_exam():
             cur.execute("SELECT * FROM Choice WHERE question_id = ?", (qid,))
             choices = cur.fetchall()
 
-            # ✨[수정] DB에서 정답 ID '리스트'를 가져옴
             correct_choice_ids = [c["choice_id"] for c in choices if c["is_correct"]]
-
             chosen_choice_ids = user_answers.get(qid, [])
             
-            # ✨[수정] 채점 방식 변경: 두 리스트를 집합(set)으로 변환하여 완전 일치 여부 확인
+            # 정답 여부 확인 (선택한 답안 리스트와 정답 리스트가 완전히 일치하는지)
             is_correct = set(chosen_choice_ids) == set(correct_choice_ids)
             
             if is_correct:
                 score += 1
             else:
-                # ✨[추가] 틀린 문제 ID를 DB에 기록
-                # 이미 기록된 문제인지 확인 후, 없으면 추가
-                cur = con.cursor()
-                cur.execute("SELECT * FROM WrongAnswer WHERE question_id = ?", (qid,))
-                if not cur.fetchone():
-                    cur.execute("INSERT INTO WrongAnswer (question_id) VALUES (?)", (qid,))
+                # 틀린 문제 ID를 WrongAnswer 테이블에 기록 (복습 기능용)
+                check_cur = con.cursor()
+                check_cur.execute("SELECT * FROM WrongAnswer WHERE question_id = ?", (qid,))
+                if not check_cur.fetchone():
+                    con.execute("INSERT INTO WrongAnswer (question_id) VALUES (?)", (qid,))
                     con.commit()
+
+            # 메타인지(자신감) 값 가져오기
             confidence_value = request.form.get(f"confidence_q_{qid}", -1, type=int)
-            cur = con.cursor()
-            cur.execute(
+            
+            # AnswerLog에 개별 문제 결과 기록
+            con.execute(
                 "INSERT INTO AnswerLog (question_id, is_correct, confidence) VALUES (?, ?, ?)",
                 (qid, is_correct, confidence_value)
             )
             con.commit()
+
+            # 결과 페이지에 보여줄 데이터 추가
             results.append({
                 "question": question_row,
                 "choices": choices,
-                "chosen": chosen_choice_ids,      # 리스트로 전달
-                "correct": correct_choice_ids,    # 리스트로 전달
+                "chosen": chosen_choice_ids,
+                "correct": correct_choice_ids,
                 "is_correct": is_correct,
                 "confidence": confidence_value
             })
 
-    total = len(qids)
-    percent = int(round(score * 100.0 / total)) if total else 0
-    return render_template("results.html", results=results, score=score, total=total, percent=percent)
+        # 2. 시험 전체 결과(세션) DB에 저장
+        total = len(qids)
+        percent = int(round(score * 100.0 / total)) if total else 0
+
+        session_cur = con.cursor()
+        session_cur.execute(
+            "INSERT INTO TestSession (score, total, percent) VALUES (?, ?, ?)",
+            (score, total, percent)
+        )
+        session_id = session_cur.lastrowid # 방금 저장된 시험 세션의 ID
+        con.commit()
+
+        # 3. 각 문항별 사용자 답변을 UserAnswer 테이블에 저장
+        answer_cur = con.cursor()
+        for r in results:
+            qid = r["question"]["question_id"]
+            chosen_ids_json = json.dumps(r["chosen"]) # 선택 답안 ID 리스트를 JSON 문자열로 변환
+            
+            answer_cur.execute(
+                """
+                INSERT INTO UserAnswer (session_id, question_id, chosen_choice_ids, is_correct, confidence)
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                (session_id, qid, chosen_ids_json, r["is_correct"], r["confidence"])
+            )
+        con.commit()
+
+    # 결과 페이지에서 '시험 기록 보기'로 바로 갈 수 있도록 session_id 전달
+    return render_template(
+        "results.html", 
+        results=results, 
+        score=score, 
+        total=total, 
+        percent=percent,
+        session_id=session_id
+    )
 
 # --- 문제 관리용 라우트 ---
 @app.route("/manage")
@@ -435,6 +471,71 @@ def report_error(question_id):
         con.commit()
     
     return {"status": "success", "has_error": new_status}
+
+@app.route("/history")
+def history_list():
+    """저장된 시험 기록 목록을 보여줍니다."""
+    with closing(get_db()) as con:
+        cur = con.cursor()
+        cur.execute("SELECT * FROM TestSession ORDER BY timestamp DESC")
+        sessions = cur.fetchall()
+    return render_template("history.html", sessions=sessions)
+
+@app.route("/history/<int:session_id>")
+def history_detail(session_id):
+    """특정 시험 기록의 상세 결과를 보여줍니다."""
+    results = []
+    session_info = {}
+
+    with closing(get_db()) as con:
+        cur = con.cursor()
+        
+        # 1. 해당 세션의 기본 정보 조회
+        cur.execute("SELECT * FROM TestSession WHERE session_id = ?", (session_id,))
+        session_info = cur.fetchone()
+        if not session_info:
+            return "시험 기록을 찾을 수 없습니다.", 404
+
+        # 2. 해당 세션의 모든 사용자 답변 기록 조회
+        cur.execute("SELECT * FROM UserAnswer WHERE session_id = ?", (session_id,))
+        user_answers = cur.fetchall()
+
+        # 3. 각 답변에 대한 상세 정보 재구성 (results.html 템플릿 형식에 맞게)
+        for answer in user_answers:
+            qid = answer["question_id"]
+            
+            # 문제 정보
+            q_cur = con.cursor()
+            q_cur.execute("SELECT * FROM Question WHERE question_id = ?", (qid,))
+            question_row = q_cur.fetchone()
+
+            # 선택지 정보
+            c_cur = con.cursor()
+            c_cur.execute("SELECT * FROM Choice WHERE question_id = ?", (qid,))
+            choices = c_cur.fetchall()
+
+            # 정답 ID 리스트
+            correct_choice_ids = [c["choice_id"] for c in choices if c["is_correct"]]
+            # 사용자가 선택한 ID 리스트 (JSON 문자열을 다시 리스트로)
+            chosen_choice_ids = json.loads(answer["chosen_choice_ids"])
+
+            results.append({
+                "question": question_row,
+                "choices": choices,
+                "chosen": chosen_choice_ids,
+                "correct": correct_choice_ids,
+                "is_correct": answer["is_correct"],
+                "confidence": answer["confidence"]
+            })
+
+    return render_template(
+        "results.html", 
+        results=results, 
+        score=session_info["score"], 
+        total=session_info["total"], 
+        percent=session_info["percent"],
+        is_history=True # 다시보기 페이지임을 알리는 플래그
+    )
 
 # --- 앱 실행 ---
 if __name__ == "__main__":

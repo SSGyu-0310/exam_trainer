@@ -1,0 +1,23 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<h1 class="h4 mb-3">시험 기록</h1>
+
+<div class="list-group">
+  {% for session in sessions %}
+    <a href="{{ url_for('history_detail', session_id=session.session_id) }}" class="list-group-item list-group-item-action flex-column align-items-start">
+      <div class="d-flex w-100 justify-content-between">
+        <h5 class="mb-1">시험 #{{ session.session_id }}</h5>
+        <small>{{ session.timestamp.split('.')[0] }}</small>
+      </div>
+      <p class="mb-1">
+        점수: <strong>{{ session.score }} / {{ session.total }}</strong> ({{ session.percent }}%)
+      </p>
+    </a>
+  {% else %}
+    <div class="alert alert-info">
+      아직 시험 기록이 없습니다.
+    </div>
+  {% endfor %}
+</div>
+{% endblock %}

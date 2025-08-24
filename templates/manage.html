@@ -16,7 +16,6 @@
             <label for="topic-select" class="form-label">주제</label>
             <select id="topic-select" name="topic" class="form-select">
                 <option value="">전체 주제</option>
-                {# 이 부분이 정상적으로 작동하는 코드입니다. #}
                 {% for topic in all_topics %}
                     <option value="{{ topic }}" {% if topic == selected_topic %}selected{% endif %}>{{ topic }}</option>
                 {% endfor %}
@@ -49,7 +48,6 @@
   {% endif %}
 {% endwith %}
 
-{# ✨[중요] 이 부분이 누락되었을 가능성이 높습니다. #}
 {# 문제 목록 테이블 #}
 <div class="table-responsive">
     <table class="table table-hover align-middle">
@@ -68,7 +66,12 @@
                 {% set is_incomplete = not q.topic or q.correct_answer_count == 0 %}
                 <tr class="{% if is_incomplete %}table-warning-custom{% endif %}">
                     <td>#{{ q.question_id }}</td>
-                    <td>{{ q.question_text | truncate(80) }}</td>
+                    <td>
+                        {% if q.has_error %}
+                            <span class="text-danger me-1">⚠️</span>
+                        {% endif %}
+                        {{ q.question_text | truncate(80) }}
+                    </td>
                     <td>{{ q.topic or '—' }}</td>
                     <td>
                         {% if q.tags %}
@@ -87,7 +90,7 @@
                         {% endif %}
                     </td>
                     <td>
-                        <a href="{{ url_for('edit_question', question_id=q.question_id) }}" class="btn btn-sm btn-outline-primary">수정</a>
+                        <a href="{{ url_for('edit_question', question_id=q.question_id, q=search_query, topic=selected_topic, tag=selected_tag) }}" class="btn btn-sm btn-outline-primary">수정</a>
                     </td>
                 </tr>
             {% else %}
@@ -105,7 +108,6 @@
     </table>
 </div>
 
-
 {# 페이지네이션 #}
 {% if total_pages > 1 %}
 <nav aria-label="Page navigation" class="mt-4">
@@ -118,27 +120,4 @@
     </ul>
 </nav>
 {% endif %}
-
-{# ... <thead> ... #}
-    <tr>
-        <th scope="col" style="width: 5%;">번호</th>
-        <th scope="col" style="width: 45%;">문제 내용 ⚠️</th> {# ⚠️ 아이콘 추가 #}
-        {# ... #}
-    </tr>
-{# ... <tbody> ... #}
-    {% for q in questions %}
-        {# ... #}
-        <tr>
-            <td>#{{ q.question_id }}</td>
-            <td>
-                {# ✨[추가] 오류 신고된 문제에 아이콘 표시 #}
-                {% if q.has_error %}
-                    <span class="text-danger me-1">⚠️</span>
-                {% endif %}
-                {{ q.question_text | truncate(80) }}
-            </td>
-            {# ... #}
-        </tr>
-    {% endfor %}
-
 {% endblock %}
