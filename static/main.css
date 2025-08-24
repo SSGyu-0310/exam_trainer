@@ -1,0 +1,28 @@
+/* 간단한 카드형 옵션 버튼 */
+.option-tile {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid #e5e7eb;
+  padding: 10px 12px;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: box-shadow 0.15s ease, transform 0.05s ease;
+}
+.option-tile:hover {
+  box-shadow: 0 4px 12px rgba(0,0,0,0.06);
+}
+.option-tile input[type="radio"] {
+  transform: scale(1.1);
+}
+.tile-text { flex: 1; }
+/* 문제 관리 페이지에서 정보가 부족한 행을 위한 커스텀 경고 스타일 */
+.table-warning-custom {
+  --bs-table-bg: #fff3cd; /* Bootstrap의 warning 색상과 유사 */
+  --bs-table-border-color: #ffe69c;
+}
+
+/* 행에 마우스를 올렸을 때의 스타일도 함께 지정 */
+.table-hover > .table-warning-custom:hover {
+  --bs-table-hover-bg: #f8e6b3;
+}

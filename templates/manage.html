@@ -1,0 +1,144 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h1 class="h4 mb-0">문제 관리</h1>
+</div>
+
+{# 필터링 UI #}
+<form method="get" action="{{ url_for('manage') }}" class="card card-body mb-3">
+    <div class="row g-2 align-items-end">
+        <div class="col-md-5">
+            <label for="search-input" class="form-label">검색</label>
+            <input type="search" id="search-input" name="q" class="form-control" placeholder="문제 내용 검색..." value="{{ search_query or '' }}">
+        </div>
+        <div class="col-md-3">
+            <label for="topic-select" class="form-label">주제</label>
+            <select id="topic-select" name="topic" class="form-select">
+                <option value="">전체 주제</option>
+                {# 이 부분이 정상적으로 작동하는 코드입니다. #}
+                {% for topic in all_topics %}
+                    <option value="{{ topic }}" {% if topic == selected_topic %}selected{% endif %}>{{ topic }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-md-3">
+            <label for="tag-select" class="form-label">태그</label>
+            <select id="tag-select" name="tag" class="form-select">
+                <option value="">전체 태그</option>
+                {% for tag in all_tags %}
+                    <option value="{{ tag }}" {% if tag == selected_tag %}selected{% endif %}>{{ tag }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-md-1">
+            <button class="btn btn-primary w-100" type="submit">조회</button>
+        </div>
+    </div>
+</form>
+
+{# 알림 메시지 표시 #}
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+    {% for category, message in messages %}
+      <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+        {{ message }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+      </div>
+    {% endfor %}
+  {% endif %}
+{% endwith %}
+
+{# ✨[중요] 이 부분이 누락되었을 가능성이 높습니다. #}
+{# 문제 목록 테이블 #}
+<div class="table-responsive">
+    <table class="table table-hover align-middle">
+        <thead class="table-light">
+            <tr>
+                <th scope="col" style="width: 5%;">번호</th>
+                <th scope="col" style="width: 45%;">문제 내용</th>
+                <th scope="col" style="width: 15%;">주제</th>
+                <th scope="col" style="width: 20%;">태그</th>
+                <th scope="col" style="width: 10%;">정답</th>
+                <th scope="col" style="width: 5%;"></th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for q in questions %}
+                {% set is_incomplete = not q.topic or q.correct_answer_count == 0 %}
+                <tr class="{% if is_incomplete %}table-warning-custom{% endif %}">
+                    <td>#{{ q.question_id }}</td>
+                    <td>{{ q.question_text | truncate(80) }}</td>
+                    <td>{{ q.topic or '—' }}</td>
+                    <td>
+                        {% if q.tags %}
+                            {% for tag in q.tags.split(',') %}
+                                <span class="badge bg-secondary">{{ tag.strip() }}</span>
+                            {% endfor %}
+                        {% else %}
+                            —
+                        {% endif %}
+                    </td>
+                    <td>
+                        {% if q.correct_answer_count > 0 %}
+                            <span class="badge bg-success">{{ q.correct_answer_count }}개</span>
+                        {% else %}
+                            <span class="badge bg-danger">미지정</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <a href="{{ url_for('edit_question', question_id=q.question_id) }}" class="btn btn-sm btn-outline-primary">수정</a>
+                    </td>
+                </tr>
+            {% else %}
+                <tr>
+                    <td colspan="6" class="text-center">
+                        {% if search_query or selected_topic or selected_tag %}
+                            해당 조건에 맞는 문제가 없습니다.
+                        {% else %}
+                            표시할 문제가 없습니다.
+                        {% endif %}
+                    </td>
+                </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+
+{# 페이지네이션 #}
+{% if total_pages > 1 %}
+<nav aria-label="Page navigation" class="mt-4">
+    <ul class="pagination justify-content-center">
+        {% for p in range(1, total_pages + 1) %}
+        <li class="page-item {% if p == current_page %}active{% endif %}">
+            <a class="page-link" href="{{ url_for('manage', page=p, q=search_query, topic=selected_topic, tag=selected_tag) }}">{{ p }}</a>
+        </li>
+        {% endfor %}
+    </ul>
+</nav>
+{% endif %}
+
+{# ... <thead> ... #}
+    <tr>
+        <th scope="col" style="width: 5%;">번호</th>
+        <th scope="col" style="width: 45%;">문제 내용 ⚠️</th> {# ⚠️ 아이콘 추가 #}
+        {# ... #}
+    </tr>
+{# ... <tbody> ... #}
+    {% for q in questions %}
+        {# ... #}
+        <tr>
+            <td>#{{ q.question_id }}</td>
+            <td>
+                {# ✨[추가] 오류 신고된 문제에 아이콘 표시 #}
+                {% if q.has_error %}
+                    <span class="text-danger me-1">⚠️</span>
+                {% endif %}
+                {{ q.question_text | truncate(80) }}
+            </td>
+            {# ... #}
+        </tr>
+    {% endfor %}
+
+{% endblock %}

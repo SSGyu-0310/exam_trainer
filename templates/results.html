@@ -1,0 +1,90 @@
+{% extends 'base.html' %}
+
+{% block content %}
+{# ... (상단 점수 표시 부분은 동일) ... #}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h1 class="h4 mb-0">채점 결과</h1>
+    <a href="{{ url_for('index') }}" class="btn btn-sm btn-outline-secondary">새로운 시험 보기</a>
+</div>
+<div class="card mb-3">
+    <div class="card-body text-center">
+        <p class="mb-1">총 {{ total }}문제 중</p>
+        <h2 class="h1 text-success">{{ score }} 개 정답!</h2>
+        <p class="lead">{{ percent }}%</p>
+    </div>
+</div>
+
+{% for r in results %}
+<div class="card mb-3 {% if r.is_correct %}border-success{% else %}border-danger{% endif %}">
+    <div class="card-body">
+        <p><strong>문제: {{ r.question.question_text }}</strong></p>
+        
+        {# --- ✨[이미지 추가] 문제에 이미지가 있다면 표시 --- #}
+        {% if r.question.image_path %}
+        <div class="text-center my-2">
+            <img src="{{ url_for('static', filename=r.question.image_path.replace('\\', '/')) }}" class="img-fluid rounded" alt="문제 이미지">
+        </div>
+        {% endif %}
+        {# --------------------------------------------- #}
+
+        <ul class="list-unstyled">
+            {% for choice in r.choices %}
+            <li class="p-2 rounded 
+                {% if choice.choice_id in r.correct %} bg-success-subtle {% endif %}
+                {% if choice.choice_id in r.chosen and choice.choice_id not in r.correct %} bg-danger-subtle {% endif %}
+            ">
+                {{ choice.choice_text }}
+                {# --- ✨[이미지 추가] 선택지에 이미지가 있다면 표시 --- #}
+                {% if choice.image_path %}
+                <div class="text-center mt-2">
+                    <img src="{{ url_for('static', filename=choice.image_path.replace('\\', '/')) }}" class="img-fluid rounded" alt="선택지 이미지" style="max-height: 150px;">
+                </div>
+                {% endif %}
+                {# ---------------------------------------------- #}
+
+                {% if choice.choice_id in r.correct %} 
+                    <span class="badge bg-success">정답</span>
+                {% endif %}
+                {% if choice.choice_id in r.chosen and choice.choice_id not in r.correct %}
+                    <span class="badge bg-danger">내가 선택한 답</span>
+                {% endif %}
+            </li>
+            {% endfor %}
+        </ul>
+        {% set confidence_levels = {
+        3: ('잘 알겠음', 'success'),
+        2: ('답은 알겠음', 'primary'),
+        1: ('헷갈림', 'warning'),
+        0: ('모르겠음', 'danger'),
+        -1: ('평가 안 함', 'secondary')
+        } %}
+        {% set confidence_text, confidence_color = confidence_levels.get(r.confidence, ('평가 안 함', 'secondary')) %}
+        <div class="d-flex justify-content-end align-items-center mt-2">
+            <small class="me-2">나의 평가:</small>
+            <span class="badge bg-{{ confidence_color }}">{{ confidence_text }}</span>
+        </div>
+
+        {# ✨[추가] 정답 여부와 자기 평가가 불일치할 경우 강력한 피드백 제공 #}
+        {% if r.is_correct and r.confidence < 2 %} {# 맞았지만, 헷갈렸거나 몰랐던 문제 #}
+        <div class="alert alert-info small mt-2 p-2">
+            <strong>메타인지 UP!</strong> 정답을 맞혔지만 스스로는 자신이 없었던 문제입니다. 개념을 다시 한번 복습해보세요.
+        </div>
+        {% elif not r.is_correct and r.confidence > 1 %} {# 틀렸지만, 잘 안다고 생각했던 문제 #}
+        <div class="alert alert-danger small mt-2 p-2">
+            <strong>메타인지 WARNING!</strong> 잘 안다고 생각했지만 틀린 문제입니다. 무엇을 착각했는지 해설을 꼼꼼히 확인하세요.
+        </div>
+        {% endif %}
+        
+        {% if r.question.answer_explanation %}
+        <div class="mt-2 p-2 bg-light border rounded small">
+            <strong>해설:</strong> {{ r.question.answer_explanation }}
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endfor %}
+
+<div class="d-grid gap-2">
+    <a href="{{ url_for('index') }}" class="btn btn-success btn-lg">새로운 시험 보기</a>
+</div>
+{% endblock %}

@@ -1,0 +1,152 @@
+{% extends 'base.html' %}
+
+{% block styles %}
+{# ✨[추가] 트리 UI를 위한 CSS #}
+<style>
+    .topic-tree ul {
+        list-style-type: none;
+        padding-left: 20px;
+    }
+    .topic-tree .caret {
+        cursor: pointer;
+        user-select: none;
+    }
+    .topic-tree .caret::before {
+        content: "\\25B6"; /* 오른쪽 방향 화살표 */
+        color: black;
+        display: inline-block;
+        margin-right: 6px;
+    }
+    .topic-tree .caret-down::before {
+        transform: rotate(90deg);
+    }
+    .topic-tree .nested {
+        display: none;
+    }
+    .topic-tree .active {
+        display: block;
+    }
+</style>
+{% endblock %}
+
+
+{% block content %}
+<div class="card">
+    <div class="card-header">
+        <h1 class="h4 mb-0">시험 설정</h1>
+    </div>
+    <div class="card-body">
+        <form method="post" id="exam-config-form">
+            <div class="mb-3">
+                <label class="form-label">1. 시험 볼 주제를 선택하세요:</label>
+                {# ✨[수정] 계층형 트리 UI #}
+                <div class="topic-tree border rounded p-3" style="max-height: 300px; overflow-y: auto;">
+                    <ul>
+                        {% for subject, topics in structured_topics.items() %}
+                        <li>
+                            <span class="caret">{{ subject }}</span>
+                            <ul class="nested">
+                                {% for topic in topics %}
+                                <li>
+                                    <div class="form-check">
+                                        <input class="form-check-input topic-checkbox" type="checkbox" name="topics" value="{{ topic }}" id="topic-{{ topic }}">
+                                        <label class="form-check-label" for="topic-{{ topic }}">
+                                            {{ topic }}
+                                        </label>
+                                    </div>
+                                </li>
+                                {% endfor %}
+                            </ul>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+
+            <div class="mb-3">
+                <label for="num_questions" class="form-label">2. 문항 수를 선택하세요:</label>
+                <div class="row g-2 align-items-center">
+                    <div class="col-md-4">
+                        <div class="input-group">
+                            <input type="number" class="form-control" name="num_questions" id="num_questions" value="5" min="1" required>
+                            <span class="input-group-text" id="total-questions-indicator">총 0 문제</span>
+                        </div>
+                    </div>
+                    <div class="col-md-8">
+                        <div class="btn-group" role="group">
+                            <button type="button" class="btn btn-outline-secondary quick-select-btn" data-value="10">10</button>
+                            <button type="button" class="btn btn-outline-secondary quick-select-btn" data-value="20">20</button>
+                            <button type="button" class="btn btn-outline-secondary quick-select-btn" data-value="40">40</button>
+                            <button type="button" class="btn btn-outline-secondary quick-select-btn" data-value="80">80</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="d-grid gap-2">
+                <button type="submit" class="btn btn-success btn-lg">시험 시작</button>
+                {# ✨[추가] 오답 다시 풀기 버튼 #}
+                <a href="{{ url_for('start_review') }}" class="btn btn-warning btn-lg">오답 다시 풀기</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script id="question-counts" type="application/json">
+    {{ question_counts_json | safe }}
+</script>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // ✨[추가] 트리 UI 동작을 위한 스크립트
+    const toggler = document.getElementsByClassName("caret");
+    for (let i = 0; i < toggler.length; i++) {
+        toggler[i].addEventListener("click", function() {
+            this.parentElement.querySelector(".nested").classList.toggle("active");
+            this.classList.toggle("caret-down");
+        });
+    }
+
+    // 기존 문항 수 계산 스크립트 (동일)
+    const questionCounts = JSON.parse(document.getElementById('question-counts').textContent);
+    const checkboxes = document.querySelectorAll('.topic-checkbox');
+    const totalIndicator = document.getElementById('total-questions-indicator');
+    const numQuestionsInput = document.getElementById('num_questions');
+
+    function updateTotalCount() {
+        let total = 0;
+        const selectedTopics = [];
+        checkboxes.forEach(cb => {
+            if (cb.checked) {
+                selectedTopics.push(cb.value);
+            }
+        });
+        
+        if (selectedTopics.length === 0) {
+            total = Object.values(questionCounts).reduce((sum, count) => sum + count, 0);
+        } else {
+            selectedTopics.forEach(topic => {
+                total += questionCounts[topic] || 0;
+            });
+        }
+        
+        totalIndicator.innerText = `총 ${total} 문제`;
+        numQuestionsInput.max = total;
+    }
+
+    checkboxes.forEach(cb => {
+        cb.addEventListener('change', updateTotalCount);
+    });
+
+    document.querySelectorAll('.quick-select-btn').forEach(button => {
+        button.addEventListener('click', function() {
+            numQuestionsInput.value = this.dataset.value;
+        });
+    });
+    
+    updateTotalCount();
+});
+</script>
+{% endblock %}

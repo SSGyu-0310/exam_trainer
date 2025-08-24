@@ -1,0 +1,85 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<h1 class="h4 mb-3">문제 수정하기 (#{{ question.question_id }})</h1>
+
+<form method="post">
+    <div class="card mb-3">
+        <div class="card-header">문제 내용 수정</div>
+        <div class="card-body">
+            <textarea class="form-control" name="question_text" rows="5">{{ question.question_text }}</textarea>
+            <div class="mt-2">
+                <label class="form-label small">문제 이미지 경로:</label>
+                {# ✨[추가] 문제 이미지 경로 수정 입력란 #}
+                <input type="text" class="form-control form-control-sm" name="question_image_path" value="{{ question.image_path or '' }}">
+            </div>
+        </div>
+    </div>
+    <div class="card mb-3">
+        <div class="card-header">메타데이터 수정</div>
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <label for="subject" class="form-label">과목</label>
+                    <input type="text" class="form-control" id="subject" name="subject" value="{{ question.subject or '' }}">
+                </div>
+                <div class="col-md-6">
+                    <label for="topic" class="form-label">주제</label>
+                    <input type="text" class="form-control" id="topic" name="topic" value="{{ question.topic or '' }}">
+                </div>
+                <div class="col-12">
+                    <label for="tags" class="form-label">태그</label>
+                    <input type="text" class="form-control" id="tags" name="tags" value="{{ question.tags or '' }}" placeholder="쉼표(,)로 구분하여 입력">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card mb-3">
+        <div class="card-header">해설 수정</div>
+        <div class="card-body">
+            <textarea class="form-control" name="answer_explanation" rows="4">{{ question.answer_explanation or '' }}</textarea>
+        </div>
+    </div>
+    {# ... (과목, 주제, 태그, 해설 입력란은 기존과 동일) ... #}
+
+    <div class="mb-3">
+        <label class="form-label">선택지 및 정답 선택</label>
+        <div class="list-group">
+            {% for choice in choices %}
+            <div class="list-group-item">
+                <div class="d-flex align-items-center">
+                    <input class="form-check-input me-3" type="checkbox" name="correct_choices" value="{{ choice.choice_id }}" {% if choice.is_correct %}checked{% endif %}>
+                    <div class="flex-grow-1">
+                        {{ choice.choice_text }}
+                        <div class="mt-1">
+                            <label class="form-label small">선택지 이미지 경로:</label>
+                            {# ✨[추가] 선택지 이미지 경로 수정 입력란 #}
+                            <input type="text" class="form-control form-control-sm" name="choice_image_path_{{ choice.choice_id }}" value="{{ choice.image_path or '' }}">
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    
+    <div class="d-flex justify-content-between align-items-center mt-4">
+        {# 목록으로 돌아가기 버튼 (필터 유지) #}
+        <a href="{{ url_for('manage', **current_filters) }}" class="btn btn-secondary">목록으로 돌아가기</a>
+        
+        {# 이전/다음 문제 탐색 버튼 #}
+        <div>
+            {% if previous_question_id %}
+                <a href="{{ url_for('edit_question', question_id=previous_question_id, **current_filters) }}" class="btn btn-outline-secondary">&laquo; 이전 문제</a>
+            {% endif %}
+            {% if next_question_id %}
+                <a href="{{ url_for('edit_question', question_id=next_question_id, **current_filters) }}" class="btn btn-outline-secondary">다음 문제 &raquo;</a>
+            {% endif %}
+        </div>
+        
+        {# 저장 버튼 #}
+        <button type="submit" class="btn btn-success">변경사항 저장</button>
+    </div>
+</form>
+{% endblock %}

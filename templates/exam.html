@@ -1,0 +1,286 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="row">
+  {# --- 1. 문제 풀이 영역 (9칸) --- #}
+  <div class="col-md-9">
+    <h1 class="h4 mb-3">문제 풀이</h1>
+    <form method="post" action="{{ url_for('submit_exam') }}" id="exam-form">
+      
+      {# --- 문제 카드 반복 시작 --- #}
+      {% for q_data in questions_data %}
+      {% set outer_loop_index = loop.index %}
+      <div class="card mb-3 question-card" id="q-{{ outer_loop_index }}" style="display: none;">
+        <div class="card-body">
+          <div class="d-flex justify-content-between">
+            <div class="small text-muted">{{ q_data.question.subject }} / {{ q_data.question.topic }}</div>
+          </div>
+          <p class="mt-2">
+            <span class="fw-bold">{{ outer_loop_index }}.</span> {{ q_data.question.question_text }}
+            {% if q_data.correct_answer_count > 1 %}
+             <span class="badge bg-info ms-2">모두 고르시오</span>
+            {% endif %}
+          </p>
+          
+          <div class="text-end mb-2">
+            <button type="button" class="btn btn-sm btn-outline-secondary quick-edit-btn" 
+                    data-bs-toggle="modal" data-bs-target="#editModal"
+                    data-question-id="{{ q_data.question.question_id }}"
+                    data-topic="{{ q_data.question.topic or '' }}"
+                    data-tags="{{ q_data.question.tags or '' }}">
+              정보 수정
+            </button>
+            <button type="button" class="btn btn-sm btn-outline-danger report-error-btn {% if q_data.question.has_error %}active{% endif %}"
+                    data-question-id="{{ q_data.question.question_id }}">
+                오류 신고
+            </button>
+          </div>
+
+          {% if q_data.question.image_path %}
+          <div class="text-center my-2">
+            <img src="{{ url_for('static', filename=q_data.question.image_path.replace('\\', '/')) }}"
+              class="img-fluid rounded" alt="문제 이미지">
+          </div>
+          {% endif %}
+          
+          {# --- 선택지 반복 시작 --- #}
+          <div class="row gy-2">
+            {% set labels = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J'] %}
+            {% for choice in q_data.choices %}
+            <div class="col-12">
+              <label class="option-tile w-100">
+                {% if q_data.correct_answer_count > 1 %}
+                  <input type="checkbox" name="q_{{ q_data.question.question_id }}" value="{{ choice.choice_id }}" data-q-index="{{ outer_loop_index }}">
+                {% else %}
+                  <input type="radio" name="q_{{ q_data.question.question_id }}" value="{{ choice.choice_id }}" data-q-index="{{ outer_loop_index }}">
+                {% endif %}
+                <span class="tile-text">({{ labels[loop.index0] }}) {{ choice.choice_text }}</span>
+                {% if choice.image_path %}
+                <div class="text-center mt-2">
+                  <img src="{{ url_for('static', filename=choice.image_path.replace('\\', '/')) }}"
+                    class="img-fluid rounded" alt="선택지 이미지" style="max-height: 150px;">
+                </div>
+                {% endif %}
+              </label>
+            </div>
+            {% endfor %}
+          </div>
+          {# --- 선택지 반복 끝 --- #}
+
+          {# <<< ✨ 자기 평가 버튼은 이 위치에 있어야 합니다 (선택지 루프 바깥) #}
+          <div class="mt-4 border-top pt-3">
+              <input type="hidden" name="confidence_q_{{ q_data.question.question_id }}" value="-1">
+              <div class="btn-group w-100" role="group">
+                  <button type="button" class="btn btn-outline-success confidence-btn" data-value="3">잘 알겠음</button>
+                  <button type="button" class="btn btn-outline-primary confidence-btn" data-value="2">답은 알겠음</button>
+                  <button type="button" class="btn btn-outline-warning confidence-btn" data-value="1">헷갈림</button>
+                  <button type="button" class="btn btn-outline-danger confidence-btn" data-value="0">모르겠음</button>
+              </div>
+          </div>
+
+        </div>
+      </div>
+      {% endfor %}
+      {# --- 문제 카드 반복 끝 --- #}
+
+      {# <<< ✨ 이전/다음/제출 버튼은 이 위치에 있어야 합니다 (문제 카드 루프 바깥) #}
+      <div class="d-flex justify-content-between mt-4">
+        <button type="button" class="btn btn-outline-secondary" id="prev-btn">이전 문제</button>
+        <button type="button" class="btn btn-primary" id="next-btn">다음 문제</button>
+        <button type="button" class="btn btn-success btn-lg" id="submit-btn" style="display: none;">제출하기</button>
+      </div>
+    </form>
+  </div>
+
+  {# --- 2. 사이드바 영역 (3칸) --- #}
+  <div class="col-md-3">
+    <div class="sticky-top" style="top: 20px;">
+      <div class="card">
+        <div class="card-header">
+          문제 이동
+        </div>
+        <div class="card-body">
+          <div id="q-nav" class="d-flex flex-wrap gap-2">
+            {# 문제 번호 버튼들은 자바스크립트로 생성됨 #}
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{# -------------------------------------------------------------------- #}
+{# ------------------------- 스크립트 영역 -------------------------- #}
+{# -------------------------------------------------------------------- #}
+
+{% block scripts %}
+<script>
+  document.addEventListener('DOMContentLoaded', function () {
+    // --- 기존 문제풀이 관련 스크립트 ---
+    const questions = document.querySelectorAll('.question-card');
+    const totalQuestions = questions.length;
+    if (totalQuestions === 0) return;
+
+    let currentQuestionIndex = 0;
+
+    const prevBtn = document.getElementById('prev-btn');
+    const nextBtn = document.getElementById('next-btn');
+    const submitBtn = document.getElementById('submit-btn');
+    const qNav = document.getElementById('q-nav');
+    const examForm = document.getElementById('exam-form');
+    const solvedQuestions = new Set();
+
+    if (qNav.children.length === 0) {
+      for (let i = 0; i < totalQuestions; i++) {
+        const navBtn = document.createElement('button');
+        const questionNum = i + 1;
+        navBtn.innerText = questionNum;
+        navBtn.classList.add('btn', 'btn-sm', 'btn-outline-secondary');
+        navBtn.dataset.qIndex = questionNum;
+        navBtn.addEventListener('click', () => goToQuestion(questionNum));
+        qNav.appendChild(navBtn);
+      }
+    }
+    const navButtons = qNav.querySelectorAll('button');
+
+    function goToQuestion(qNum) {
+      currentQuestionIndex = qNum - 1;
+      updateUI();
+    }
+
+    function updateUI() {
+      const currentQuestionNum = currentQuestionIndex + 1;
+      questions.forEach((q, index) => {
+        q.style.display = (index === currentQuestionIndex) ? 'block' : 'none';
+      });
+      prevBtn.style.display = currentQuestionNum > 1 ? 'inline-block' : 'none';
+      nextBtn.style.display = currentQuestionNum < totalQuestions ? 'inline-block' : 'none';
+      submitBtn.style.display = currentQuestionNum === totalQuestions ? 'inline-block' : 'none';
+      navButtons.forEach((btn) => {
+        const qIndex = parseInt(btn.dataset.qIndex, 10);
+        btn.classList.remove('btn-primary', 'btn-success', 'btn-outline-secondary');
+        if (qIndex === currentQuestionNum) {
+          btn.classList.add('btn-primary');
+        } else if (solvedQuestions.has(qIndex)) {
+          btn.classList.add('btn-success');
+        } else {
+          btn.classList.add('btn-outline-secondary');
+        }
+      });
+    }
+
+    document.querySelectorAll('input[type="radio"], input[type="checkbox"]').forEach(input => {
+      input.addEventListener('change', function () {
+        const qIndex = parseInt(this.dataset.qIndex, 10);
+        solvedQuestions.add(qIndex);
+        updateUI();
+      });
+    });
+
+    prevBtn.addEventListener('click', () => {
+      if (currentQuestionIndex > 0) {
+        goToQuestion(currentQuestionIndex);
+      }
+    });
+
+    nextBtn.addEventListener('click', () => {
+      if (currentQuestionIndex < totalQuestions - 1) {
+        goToQuestion(currentQuestionIndex + 2);
+      }
+    });
+
+    submitBtn.addEventListener('click', () => {
+      examForm.submit();
+    });
+
+    goToQuestion(1);
+
+    // --- 정보 수정 모달 관련 스크립트 ---
+    const editModal = document.getElementById('editModal');
+    if (editModal) {
+        const modalTopicInput = document.getElementById('modal-topic');
+        const modalTagsInput = document.getElementById('modal-tags');
+        const modalQuestionIdInput = document.getElementById('modal-question-id');
+        const saveEditBtn = document.getElementById('save-edit-btn');
+
+        editModal.addEventListener('show.bs.modal', function (event) {
+            const button = event.relatedTarget;
+            modalQuestionIdInput.value = button.dataset.questionId;
+            modalTopicInput.value = button.dataset.topic;
+            modalTagsInput.value = button.dataset.tags;
+        });
+
+        saveEditBtn.addEventListener('click', function() {
+            const questionId = modalQuestionIdInput.value;
+            const form = document.getElementById('edit-form');
+            const formData = new FormData(form);
+            fetch(`/quick_edit/${questionId}`, { method: 'POST', body: formData })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    const modalInstance = bootstrap.Modal.getInstance(editModal);
+                    modalInstance.hide();
+                    const editButton = document.querySelector(`.quick-edit-btn[data-question-id="${questionId}"]`);
+                    editButton.dataset.topic = formData.get('topic');
+                    editButton.dataset.tags = formData.get('tags');
+                } else { alert('저장에 실패했습니다.'); }
+            })
+            .catch(error => { console.error('Error:', error); alert('오류가 발생했습니다.'); });
+        });
+    }
+    
+    // --- 오류 신고 버튼 관련 스크립트 ---
+    document.querySelectorAll('.report-error-btn').forEach(button => {
+        button.addEventListener('click', function() {
+            const questionId = this.dataset.questionId;
+            fetch(`/report_error/${questionId}`, { method: 'POST' })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    this.classList.toggle('active', data.has_error);
+                }
+            });
+        });
+    });
+
+    // --- 자기 평가(메타인지) 버튼 스크립트 ---
+    document.querySelectorAll('.confidence-btn').forEach(button => {
+        button.addEventListener('click', function() {
+            this.parentElement.querySelectorAll('.confidence-btn').forEach(btn => btn.classList.remove('active'));
+            this.classList.add('active');
+            const hiddenInput = this.parentElement.previousElementSibling;
+            hiddenInput.value = this.dataset.value;
+        });
+    });
+  });
+</script>
+
+<div class="modal fade" id="editModal" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">문제 정보 수정</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <form id="edit-form">
+          <input type="hidden" id="modal-question-id" name="question_id">
+          <div class="mb-3">
+            <label for="modal-topic" class="form-label">주제</label>
+            <input type="text" class="form-control" id="modal-topic" name="topic">
+          </div>
+          <div class="mb-3">
+            <label for="modal-tags" class="form-label">태그</label>
+            <input type="text" class="form-control" id="modal-tags" name="tags" placeholder="쉼표로 구분">
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">닫기</button>
+        <button type="button" class="btn btn-primary" id="save-edit-btn">저장하기</button>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
