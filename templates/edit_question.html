@@ -5,12 +5,22 @@
 
 <form method="post">
     <div class="card mb-3">
-        <div class="card-header">문제 내용 수정</div>
+<div class="card-header">문제 내용 수정</div>
         <div class="card-body">
             <textarea class="form-control" name="question_text" rows="5">{{ question.question_text }}</textarea>
+            
+            {# --- 문제 이미지 미리보기 추가 --- #}
+            {% if question.image_path %}
+            <div class="mt-2 border rounded p-2 bg-light">
+                <p class="small mb-1">이미지 미리보기:</p>
+                {% for img_path in question.image_path.split(',') %}
+                <img src="{{ url_for('static', filename=img_path.strip().replace('\\', '/')) }}" class="img-thumbnail me-2" style="max-height: 100px;">
+                {% endfor %}
+            </div>
+            {% endif %}
+
             <div class="mt-2">
                 <label class="form-label small">문제 이미지 경로:</label>
-                {# ✨[추가] 문제 이미지 경로 수정 입력란 #}
                 <input type="text" class="form-control form-control-sm" name="question_image_path" value="{{ question.image_path or '' }}">
             </div>
         </div>

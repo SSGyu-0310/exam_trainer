@@ -1,0 +1,112 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<h1 class="h4 mb-3">새로운 문제 추가</h1>
+
+<form method="post" id="add-question-form">
+    {# 문제 기본 정보 카드 #}
+    <div class="card mb-3">
+        <div class="card-header">문제 정보</div>
+        <div class="card-body">
+            <div class="mb-3">
+                <label for="question_text" class="form-label">문제 내용</label>
+                <textarea class="form-control" id="question_text" name="question_text" rows="4" required></textarea>
+            </div>
+            <div>
+                <label for="question_image_path" class="form-label">문제 이미지 경로</label>
+                <input type="text" class="form-control" id="question_image_path" name="question_image_path" placeholder="쉼표(,)로 여러 경로 입력 가능">
+            </div>
+        </div>
+    </div>
+
+    {# 메타데이터 카드 #}
+    <div class="card mb-3">
+        <div class="card-header">메타데이터</div>
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <label for="subject" class="form-label">과목</label>
+                    <input type="text" class="form-control" id="subject" name="subject">
+                </div>
+                <div class="col-md-6">
+                    <label for="topic" class="form-label">주제</label>
+                    <input type="text" class="form-control" id="topic" name="topic">
+                </div>
+                <div class="col-12">
+                    <label for="tags" class="form-label">태그</label>
+                    <input type="text" class="form-control" id="tags" name="tags" placeholder="쉼표(,)로 구분">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {# 선택지 카드 #}
+    <div class="card mb-3">
+        <div class="card-header">선택지 및 정답 설정</div>
+        <div class="card-body" id="choices-container">
+            {# 자바스크립트로 선택지 입력 필드가 여기에 추가됩니다 #}
+        </div>
+        <div class="card-footer">
+            <button type="button" id="add-choice-btn" class="btn btn-secondary btn-sm">선택지 추가</button>
+        </div>
+    </div>
+    
+    {# 해설 카드 #}
+    <div class="card mb-3">
+        <div class="card-header">해설</div>
+        <div class="card-body">
+            <textarea class="form-control" name="answer_explanation" rows="4" placeholder="정답에 대한 해설을 입력하세요."></textarea>
+        </div>
+    </div>
+
+    {# 제출 버튼 #}
+    <div class="d-flex justify-content-end gap-2 mt-4">
+        <a href="{{ url_for('manage') }}" class="btn btn-secondary">취소</a>
+        <button type="submit" class="btn btn-primary">문제 저장하기</button>
+    </div>
+</form>
+{% endblock %}
+
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const choicesContainer = document.getElementById('choices-container');
+    const addChoiceBtn = document.getElementById('add-choice-btn');
+    let choiceCounter = 0;
+
+    function addChoiceInput() {
+        const choiceId = `choice_${choiceCounter}`;
+        
+        const newChoiceDiv = document.createElement('div');
+        newChoiceDiv.classList.add('input-group', 'mb-2');
+        
+        newChoiceDiv.innerHTML = `
+            <div class="input-group-text">
+                <input class="form-check-input mt-0" type="checkbox" name="is_correct" value="${choiceId}">
+            </div>
+            <input type="text" class="form-control" name="${choiceId}_text" placeholder="선택지 내용 입력..." required>
+            <input type="text" class="form-control" name="${choiceId}_image" placeholder="이미지 경로 (선택)">
+            <button class="btn btn-outline-danger remove-choice-btn" type="button">삭제</button>
+        `;
+        
+        choicesContainer.appendChild(newChoiceDiv);
+        choiceCounter++;
+    }
+
+    // 삭제 버튼 이벤트 위임
+    choicesContainer.addEventListener('click', function(e) {
+        if (e.target && e.target.classList.contains('remove-choice-btn')) {
+            e.target.closest('.input-group').remove();
+        }
+    });
+
+    addChoiceBtn.addEventListener('click', addChoiceInput);
+
+    // 기본 선택지 4개 추가
+    for (let i = 0; i < 4; i++) {
+        addChoiceInput();
+    }
+});
+</script>
+{% endblock %}

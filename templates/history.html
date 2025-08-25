@@ -1,23 +1,87 @@
 {% extends 'base.html' %}
 
 {% block content %}
-<h1 class="h4 mb-3">시험 기록</h1>
-
-<div class="list-group">
-  {% for session in sessions %}
-    <a href="{{ url_for('history_detail', session_id=session.session_id) }}" class="list-group-item list-group-item-action flex-column align-items-start">
-      <div class="d-flex w-100 justify-content-between">
-        <h5 class="mb-1">시험 #{{ session.session_id }}</h5>
-        <small>{{ session.timestamp.split('.')[0] }}</small>
-      </div>
-      <p class="mb-1">
-        점수: <strong>{{ session.score }} / {{ session.total }}</strong> ({{ session.percent }}%)
-      </p>
-    </a>
-  {% else %}
-    <div class="alert alert-info">
-      아직 시험 기록이 없습니다.
-    </div>
-  {% endfor %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h1 class="h4 mb-0">시험 기록 관리</h1>
+    <a href="{{ url_for('index') }}" class="btn btn-sm btn-outline-secondary">새 시험 보기</a>
 </div>
+
+{# 알림 메시지 표시 #}
+{% with messages = get_flashed_messages(with_categories=true) %}
+  {% if messages %}
+    {% for category, message in messages %}
+      <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+        {{ message }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+      </div>
+    {% endfor %}
+  {% endif %}
+{% endwith %}
+
+{# ✨[수정] form으로 전체 목록을 감싸기 #}
+<form action="{{ url_for('review_selected_sessions') }}" method="post">
+    <div class="list-group">
+      {% for session in sessions %}
+        <div class="list-group-item">
+          <div class="row align-items-center">
+            {# 체크박스 #}
+            <div class="col-auto">
+                <input class="form-check-input" type="checkbox" name="session_ids" value="{{ session.session_id }}" id="session-check-{{ session.session_id }}">
+            </div>
+            {# 시험 정보 #}
+            <div class="col">
+                <label class="w-100" for="session-check-{{ session.session_id }}" style="cursor: pointer;">
+                  <div class="d-flex w-100 justify-content-between">
+                    <h5 class="mb-1" id="name-display-{{ session.session_id }}">
+                      <a href="{{ url_for('history_detail', session_id=session.session_id) }}">
+                        {{ session.session_name or ('시험 #' + session.session_id|string) }}
+                      </a>
+                    </h5>
+                    <small class="text-muted">{{ session.timestamp.split('.')[0] }}</small>
+                  </div>
+                  <p class="mb-1">
+                    점수: <strong>{{ session.score }} / {{ session.total }}</strong> ({{ session.percent }}%)
+                  </p>
+                </label>
+            </div>
+            {# 관리 버튼들 #}
+            <div class="col-auto">
+                <button type="button" class="btn btn-sm btn-outline-secondary edit-btn" data-session-id="{{ session.session_id }}">이름 변경</button>
+                <form action="{{ url_for('delete_history', session_id=session.session_id) }}" method="post" class="d-inline" onsubmit="return confirm('정말로 이 시험 기록을 삭제하시겠습니까?');">
+                    <button type="submit" class="btn btn-sm btn-outline-danger">삭제</button>
+                </form>
+            </div>
+          </div>
+          {# 이름 수정용 숨겨진 폼 #}
+          <form action="{{ url_for('edit_history', session_id=session.session_id) }}" method="post" class="d-none mt-2" id="edit-form-{{ session.session_id }}">
+              <div class="input-group">
+                  <input type="text" class="form-control" name="new_name" value="{{ session.session_name or '' }}" required>
+                  <button class="btn btn-sm btn-success" type="submit">저장</button>
+              </div>
+          </form>
+        </div>
+      {% else %}
+        <div class="alert alert-info">
+          아직 시험 기록이 없습니다.
+        </div>
+      {% endfor %}
+    </div>
+
+    {# ✨[추가] 선택 오답 풀기 버튼 #}
+    <div class="mt-3 text-end">
+        <button type="submit" class="btn btn-warning">선택한 시험들의 오답 모아 풀기</button>
+    </div>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.querySelectorAll('.edit-btn').forEach(button => {
+    button.addEventListener('click', function() {
+        const sessionId = this.dataset.sessionId;
+        // 이름 수정 폼만 토글합니다.
+        document.getElementById('edit-form-' + sessionId).classList.toggle('d-none');
+    });
+});
+</script>
 {% endblock %}

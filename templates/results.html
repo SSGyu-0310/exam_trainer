@@ -1,96 +1,207 @@
 {% extends 'base.html' %}
 
 {% block content %}
-{# ... (상단 점수 표시 부분은 동일) ... #}
-<div class="d-flex justify-content-between align-items-center mb-3">
-    <h1 class="h4 mb-0">채점 결과</h1>
-    {% if not is_history %}
-        {# 시험 직후 결과 페이지 #}
-        <a href="{{ url_for('history_list') }}" class="btn btn-sm btn-outline-primary">시험 기록 보기</a>
-    {% else %}
-        {# 시험 기록 다시보기 페이지 #}
-        <a href="{{ url_for('history_list') }}" class="btn btn-sm btn-outline-secondary">목록으로</a>
-    {% endif %}
-</div>
-<div class="card mb-3">
-    <div class="card-body text-center">
-        <p class="mb-1">총 {{ total }}문제 중</p>
-        <h2 class="h1 text-success">{{ score }} 개 정답!</h2>
-        <p class="lead">{{ percent }}%</p>
+{# --- 1. 종합 분석 리포트 --- #}
+<div class="card mb-4">
+    <div class="card-header">
+        <h5 class="mb-0">종합 분석 리포트</h5>
     </div>
-</div>
-
-{% for r in results %}
-<div class="card mb-3 {% if r.is_correct %}border-success{% else %}border-danger{% endif %}">
     <div class="card-body">
-        <p><strong>문제: {{ r.question.question_text }}</strong></p>
-        
-        {# --- ✨[이미지 추가] 문제에 이미지가 있다면 표시 --- #}
-        {% if r.question.image_path %}
-        <div class="text-center my-2">
-            <img src="{{ url_for('static', filename=r.question.image_path.replace('\\', '/')) }}" class="img-fluid rounded" alt="문제 이미지">
-        </div>
-        {% endif %}
-        {# --------------------------------------------- #}
-
-        <ul class="list-unstyled">
-            {% for choice in r.choices %}
-            <li class="p-2 rounded 
-                {% if choice.choice_id in r.correct %} bg-success-subtle {% endif %}
-                {% if choice.choice_id in r.chosen and choice.choice_id not in r.correct %} bg-danger-subtle {% endif %}
-            ">
-                {{ choice.choice_text }}
-                {# --- ✨[이미지 추가] 선택지에 이미지가 있다면 표시 --- #}
-                {% if choice.image_path %}
-                <div class="text-center mt-2">
-                    <img src="{{ url_for('static', filename=choice.image_path.replace('\\', '/')) }}" class="img-fluid rounded" alt="선택지 이미지" style="max-height: 150px;">
+        <div class="row align-items-center">
+            <div class="col-md-4 text-center border-end">
+                <p class="mb-1 text-muted">총 {{ total }}문제 중</p>
+                <h3 class="display-5 fw-bold text-success">{{ score }}<span class="fs-5 text-dark"> 개 정답</span></h3>
+                <div class="progress mt-2" style="height: 20px;">
+                    <div class="progress-bar bg-success" role="progressbar" style="width: {{ percent }}%;" aria-valuenow="{{ percent }}" aria-valuemin="0" aria-valuemax="100">{{ percent }}%</div>
                 </div>
-                {% endif %}
-                {# ---------------------------------------------- #}
-
-                {% if choice.choice_id in r.correct %} 
-                    <span class="badge bg-success">정답</span>
-                {% endif %}
-                {% if choice.choice_id in r.chosen and choice.choice_id not in r.correct %}
-                    <span class="badge bg-danger">내가 선택한 답</span>
-                {% endif %}
-            </li>
-            {% endfor %}
-        </ul>
-        {% set confidence_levels = {
-        3: ('잘 알겠음', 'success'),
-        2: ('답은 알겠음', 'primary'),
-        1: ('헷갈림', 'warning'),
-        0: ('모르겠음', 'danger'),
-        -1: ('평가 안 함', 'secondary')
-        } %}
-        {% set confidence_text, confidence_color = confidence_levels.get(r.confidence, ('평가 안 함', 'secondary')) %}
-        <div class="d-flex justify-content-end align-items-center mt-2">
-            <small class="me-2">나의 평가:</small>
-            <span class="badge bg-{{ confidence_color }}">{{ confidence_text }}</span>
+            </div>
+            <div class="col-md-8">
+                <div class="row g-2 text-center">
+                    <div class="col-6"><div class="p-2 border rounded h-100"><h5 class="mb-0">{{ (results|selectattr('is_correct')|selectattr('confidence', '>', 1)|list|length) }}</h5><small class="text-muted">✅ 정확히 안 문제</small></div></div>
+                    <div class="col-6"><div class="p-2 border rounded bg-info-subtle h-100"><h5 class="mb-0">{{ (results|selectattr('is_correct')|selectattr('confidence', '<', 2)|list|length) }}</h5><small class="text-muted">🎯 운 좋게 맞힌 문제</small></div></div>
+                    <div class="col-6"><div class="p-2 border rounded bg-danger-subtle h-100"><h5 class="mb-0">{{ (results|rejectattr('is_correct')|selectattr('confidence', '>', 1)|list|length) }}</h5><small class="text-muted">⚠️ 착각해서 틀린 문제</small></div></div>
+                    <div class="col-6"><div class="p-2 border rounded bg-warning-subtle h-100"><h5 class="mb-0">{{ (results|rejectattr('is_correct')|selectattr('confidence', '<', 2)|list|length) }}</h5><small class="text-muted">📚 몰라서 틀린 문제</small></div></div>
+                </div>
+            </div>
         </div>
-
-        {# ✨[추가] 정답 여부와 자기 평가가 불일치할 경우 강력한 피드백 제공 #}
-        {% if r.is_correct and r.confidence < 2 %} {# 맞았지만, 헷갈렸거나 몰랐던 문제 #}
-        <div class="alert alert-info small mt-2 p-2">
-            <strong>메타인지 UP!</strong> 정답을 맞혔지만 스스로는 자신이 없었던 문제입니다. 개념을 다시 한번 복습해보세요.
-        </div>
-        {% elif not r.is_correct and r.confidence > 1 %} {# 틀렸지만, 잘 안다고 생각했던 문제 #}
-        <div class="alert alert-danger small mt-2 p-2">
-            <strong>메타인지 WARNING!</strong> 잘 안다고 생각했지만 틀린 문제입니다. 무엇을 착각했는지 해설을 꼼꼼히 확인하세요.
-        </div>
-        {% endif %}
-        
-        {% if r.question.answer_explanation %}
-        <div class="mt-2 p-2 bg-light border rounded small">
-            <strong>해설:</strong> {{ r.question.answer_explanation }}
-        </div>
-        {% endif %}
     </div>
 </div>
-{% endfor %}
 
-<div class="d-grid gap-2 mt-4">
-    <a href="{{ url_for('index') }}" class="btn btn-success btn-lg">홈으로 돌아가기</a>
+{# --- 2. 문제 분석 영역 --- #}
+<div class="row">
+  <div class="col-md-9">
+    {% for r in results %}
+    <div class="card mb-3 result-card" id="q-{{ loop.index }}" style="display: none;" 
+         data-is-correct="{{ r.is_correct|string|lower }}" 
+         data-confidence="{{ r.confidence }}">
+        <div class="card-body">
+            <p><strong>{{ loop.index }}. {{ r.question.question_text }}</strong></p>
+            {% if r.question.image_path %}
+            <div class="text-center my-2">
+                {% for img_path in r.question.image_path.split(',') %}
+                <img src="{{ url_for('static', filename=img_path.strip().replace('\\', '/')) }}" class="img-fluid rounded mb-2" alt="문제 이미지">
+                {% endfor %}
+            </div>
+            {% endif %}
+            <ul class="list-unstyled">
+                {% for choice in r.choices %}
+                <li class="p-2 my-1 rounded small
+                    {% if choice.choice_id in r.correct %} border border-success bg-success-subtle {% elif choice.choice_id in r.chosen %} border border-danger bg-danger-subtle {% else %} bg-light {% endif %}">
+                    {{ choice.choice_text }}
+                    {% if choice.image_path %}
+                    <div class="text-center mt-2">
+                        {% for img_path in choice.image_path.split(',') %}
+                        <img src="{{ url_for('static', filename=img_path.strip().replace('\\', '/')) }}" class="img-fluid rounded mb-2" alt="선택지 이미지" style="max-height: 150px;">
+                        {% endfor %}
+                    </div>
+                    {% endif %}
+                    {% if choice.choice_id in r.correct %} <span class="badge bg-success float-end">정답</span> {% endif %}
+                    {% if choice.choice_id in r.chosen and choice.choice_id not in r.correct %} <span class="badge bg-danger float-end">내가 선택한 오답</span> {% endif %}
+                </li>
+                {% endfor %}
+            </ul>
+            <div class="mt-2 text-end">
+                <span class="badge bg-primary">{{ r.question.topic or '미지정 주제' }}</span>
+                {% if r.question.tags %}
+                    {% for tag in r.question.tags.split(',') %}<span class="badge bg-secondary">{{ tag.strip() }}</span>{% endfor %}
+                {% endif %}
+            </div>
+            {% if r.question.answer_explanation %}
+            <div class="mt-2 p-2 bg-light border rounded small">
+                <strong>해설:</strong> {{ r.question.answer_explanation }}
+            </div>
+            {% endif %}
+
+            {# --- ✨[추가] 개인 노트 작성 영역 --- #}
+            {% if not r.is_correct %}
+            <div class="mt-3">
+                <label for="note-{{ r.question.question_id }}" class="form-label fw-bold">📝 개인 노트</label>
+                <textarea class="form-control" id="note-{{ r.question.question_id }}" rows="3">{{ r.note }}</textarea>
+                <div class="text-end mt-2">
+                    <button class="btn btn-sm btn-primary save-note-btn" 
+                            data-session-id="{{ session_id }}" 
+                            data-question-id="{{ r.question.question_id }}">
+                        노트 저장
+                    </button>
+                    <span class="save-status small text-muted ms-2" id="status-{{ r.question.question_id }}"></span>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  {# 사이드바 영역 #}
+  <div class="col-md-3">
+    <div class="sticky-top" style="top: 20px;">
+      <div class="card">
+        <div class="card-header">결과 요약</div>
+        <div class="card-body"><div id="q-nav" class="d-flex flex-wrap gap-2"></div></div>
+      </div>
+      <div class="d-flex justify-content-between mt-3">
+        <button type="button" class="btn btn-outline-secondary" id="prev-btn">이전 문제</button>
+        <button type="button" class="btn btn-primary" id="next-btn">다음 문제</button>
+      </div>
+      <div class="d-grid gap-2 mt-3">
+        {% if session_id %}
+        <a href="{{ url_for('review_wrong_answers', session_id=session_id) }}" class="btn btn-warning">틀린 문제 다시 풀기</a>
+        {% endif %}
+        <a href="{{ url_for('index') }}" class="btn btn-success">홈으로 돌아가기</a>
+      </div>
+    </div>
+  </div>
 </div>
+{% endblock %}
+
+
+{% block scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    // --- (기존의 페이지 넘기기 및 사이드바 스크립트는 동일) ---
+    const resultCards = document.querySelectorAll('.result-card');
+    const totalQuestions = resultCards.length;
+    if (totalQuestions === 0) return;
+    let currentQIndex = 0;
+    const prevBtn = document.getElementById('prev-btn');
+    const nextBtn = document.getElementById('next-btn');
+    const qNav = document.getElementById('q-nav');
+    resultCards.forEach((card, index) => {
+        const qNum = index + 1;
+        const navBtn = document.createElement('button');
+        navBtn.innerText = qNum;
+        navBtn.dataset.qIndex = qNum;
+        navBtn.type = 'button';
+        navBtn.addEventListener('click', () => goToQuestion(qNum));
+        const isCorrect = card.dataset.isCorrect === 'true';
+        const confidence = parseInt(card.dataset.confidence, 10);
+        let btnClass = 'btn-secondary', tooltip = '';
+        if (isCorrect) {
+            if (confidence > 1) { btnClass = 'btn-success'; tooltip = '✅ 정확히 안 문제'; }
+            else { btnClass = 'btn-info'; tooltip = '🎯 운 좋게 맞힌 문제'; }
+        } else {
+            if (confidence > 1) { btnClass = 'btn-danger'; tooltip = '⚠️ 착각해서 틀린 문제'; }
+            else { btnClass = 'btn-warning'; tooltip = '📚 몰라서 틀린 문제'; }
+        }
+        navBtn.classList.add('btn', 'btn-sm', btnClass);
+        navBtn.title = tooltip;
+        qNav.appendChild(navBtn);
+    });
+    const navButtons = qNav.querySelectorAll('button');
+    navButtons.forEach(btn => new bootstrap.Tooltip(btn));
+    function goToQuestion(qNum) { currentQIndex = qNum - 1; updateUI(); }
+    function updateUI() {
+        const currentQNum = currentQIndex + 1;
+        resultCards.forEach((card, index) => {
+            card.style.display = (index === currentQIndex) ? 'block' : 'none';
+        });
+        navButtons.forEach(btn => {
+            btn.classList.toggle('active', parseInt(btn.dataset.qIndex, 10) === currentQNum);
+        });
+        prevBtn.style.display = (currentQNum > 1) ? 'block' : 'none';
+        nextBtn.style.display = (currentQNum < totalQuestions) ? 'block' : 'none';
+    }
+    prevBtn.addEventListener('click', () => goToQuestion(currentQIndex));
+    nextBtn.addEventListener('click', () => goToQuestion(currentQIndex + 2));
+    goToQuestion(1);
+
+    // --- ✨[추가] 노트 저장 기능 스크립트 ---
+    document.querySelectorAll('.save-note-btn').forEach(button => {
+        button.addEventListener('click', function() {
+            const sessionId = this.dataset.sessionId;
+            const questionId = this.dataset.questionId;
+            const noteText = document.getElementById(`note-${questionId}`).value;
+            const statusSpan = document.getElementById(`status-${questionId}`);
+
+            statusSpan.textContent = '저장 중...';
+            
+            fetch('/save_note', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    session_id: sessionId,
+                    question_id: questionId,
+                    note_text: noteText,
+                }),
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    statusSpan.textContent = '✅ 저장됨';
+                } else {
+                    statusSpan.textContent = '❌ 저장 실패';
+                }
+                setTimeout(() => { statusSpan.textContent = ''; }, 2000); // 2초 후 메시지 사라짐
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                statusSpan.textContent = '❌ 오류 발생';
+                setTimeout(() => { statusSpan.textContent = ''; }, 2000);
+            });
+        });
+    });
+});
+</script>
 {% endblock %}

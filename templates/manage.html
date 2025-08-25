@@ -3,6 +3,8 @@
 {% block content %}
 <div class="d-flex justify-content-between align-items-center mb-3">
     <h1 class="h4 mb-0">문제 관리</h1>
+    {# ✨[추가] 문제 추가 페이지로 이동하는 버튼 #}
+    <a href="{{ url_for('add_question') }}" class="btn btn-primary">새 문제 추가</a>
 </div>
 
 {# 필터링 UI #}

@@ -38,33 +38,40 @@
 
           {% if q_data.question.image_path %}
           <div class="text-center my-2">
-            <img src="{{ url_for('static', filename=q_data.question.image_path.replace('\\', '/')) }}"
-              class="img-fluid rounded" alt="문제 이미지">
+            {# 쉼표로 경로를 분리하여 각 이미지에 대해 반복 #}
+            {% for img_path in q_data.question.image_path.split(',') %}
+              <img src="{{ url_for('static', filename=img_path.strip().replace('\\', '/')) }}"
+                class="img-fluid rounded mb-2" alt="문제 이미지">
+            {% endfor %}
           </div>
           {% endif %}
           
           {# --- 선택지 반복 시작 --- #}
-          <div class="row gy-2">
-            {% set labels = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J'] %}
-            {% for choice in q_data.choices %}
-            <div class="col-12">
-              <label class="option-tile w-100">
-                {% if q_data.correct_answer_count > 1 %}
-                  <input type="checkbox" name="q_{{ q_data.question.question_id }}" value="{{ choice.choice_id }}" data-q-index="{{ outer_loop_index }}">
-                {% else %}
-                  <input type="radio" name="q_{{ q_data.question.question_id }}" value="{{ choice.choice_id }}" data-q-index="{{ outer_loop_index }}">
-                {% endif %}
-                <span class="tile-text">({{ labels[loop.index0] }}) {{ choice.choice_text }}</span>
-                {% if choice.image_path %}
-                <div class="text-center mt-2">
-                  <img src="{{ url_for('static', filename=choice.image_path.replace('\\', '/')) }}"
-                    class="img-fluid rounded" alt="선택지 이미지" style="max-height: 150px;">
-                </div>
-                {% endif %}
-              </label>
-            </div>
-            {% endfor %}
-          </div>
+<div class="row gy-2">
+  {% for choice in q_data.choices %}
+  <div class="col-12">
+    {# ✨[수정] label 안의 요소 순서 변경 #}
+    <label class="option-tile w-100">
+      {% if q_data.correct_answer_count > 1 %}
+        <input type="checkbox" name="q_{{ q_data.question.question_id }}" value="{{ choice.choice_id }}" data-q-index="{{ outer_loop_index }}">
+      {% else %}
+        <input type="radio" name="q_{{ q_data.question.question_id }}" value="{{ choice.choice_id }}" data-q-index="{{ outer_loop_index }}">
+      {% endif %}
+      {# span 태그가 input 다음에 오도록 순서 변경 #}
+      <span class="tile-text">({{ labels[loop.index0] }}) {{ choice.choice_text }}</span> 
+      
+      {% if choice.image_path %}
+      <div class="text-center mt-2">
+        {% for img_path in choice.image_path.split(',') %}
+          <img src="{{ url_for('static', filename=img_path.strip().replace('\\', '/')) }}"
+            class="img-fluid rounded mb-2" alt="선택지 이미지" style="max-height: 150px;">
+        {% endfor %}
+      </div>
+      {% endif %}
+    </label>
+  </div>
+  {% endfor %}
+</div>
           {# --- 선택지 반복 끝 --- #}
 
           {# <<< ✨ 자기 평가 버튼은 이 위치에 있어야 합니다 (선택지 루프 바깥) #}
